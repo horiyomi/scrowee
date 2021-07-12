@@ -15,13 +15,13 @@ pub struct Escrow {
 }
 
 
-impl Sealed for Escrow {};
+impl Sealed for Escrow {}
 
 impl IsInitialized for Escrow {
   fn is_initialized(&self) -> bool {
     self.is_initialized
   }
-};
+}
 
 impl Pack for Escrow {
   const LEN: usize = 105;

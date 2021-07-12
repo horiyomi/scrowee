@@ -1,11 +1,12 @@
 use solana_program::{
-  acount_info::{next_account_info, AccountInfo},
+  account_info::{ next_account_info, AccountInfo},
   entrypoint::ProgramResult,
   msg,
   pubkey::Pubkey,
   program_pack::{Pack, IsInitialized},
   sysvar::{rent::Rent, Sysvar},
-  program::invoke
+  program::invoke,
+  program_error::ProgramError
 };
 
 use crate::{instruction::EscrowInstruction, error::EscrowError, state::Escrow};
@@ -18,7 +19,11 @@ impl Processor {
     let instruction = EscrowInstruction::unpack(instruction_data)?;
     match instruction {
       EscrowInstruction::InitEscrow { amount } => {
-        msg!("Instruction: InitEscrow")
+        msg!("Instruction: InitEscrow");
+        Self::process_init_escrow(accounts, amount, program_id)
+      }
+      EscrowInstruction::Exchange { amount } => {
+        msg!("Instruction: Exchanges");
         Self::process_init_escrow(accounts, amount, program_id)
       }
     }
@@ -56,7 +61,7 @@ impl Processor {
     escrow_info.is_initialized = true;
     escrow_info.initializer_pubkey = *initializer.key;
     escrow_info.temp_token_account_pubkey = *temp_token_account.key;
-    escrow_info.initializer_token_to_receive_account_pubkey = *token_to_receive_account.key;
+    escrow_info.initializer_token_to_receive_account_pubkey = *token_to_recieve_account.key;
     escrow_info.expected_amount = amount;
 
     Escrow::pack(escrow_info, &mut escrow_account.data.borrow_mut())?;    
@@ -65,23 +70,24 @@ impl Processor {
 
     let token_program = next_account_info(account_info_iter)?;
     let owner_change_ix = spl_token::instruction::set_authority(
-      token_program.key,
-      temp_token_account.key,
-      Some(&pda),
-      spl_token::instruction::AuthorityType::AccountOwner,
-      initializer.key,
-      &[initializer.key],
-    )
+            token_program.key,
+            temp_token_account.key,
+            Some(&pda),
+            spl_token::instruction::AuthorityType::AccountOwner,
+            initializer.key,
+            &[&initializer.key],
+        )?;
 
-    msg!("Calling the token program to transfer account ownership...");
-    invoke(
-      &owner_change_ix,
-      &[
-        temp_token_account.clone(),
-        initializer.clone(),
-        token_program.clone(),
-      ],
-    )?;
+        msg!("Calling the token program to transfer token account ownership...");
+        invoke(
+            &owner_change_ix,
+            &[
+                temp_token_account.clone(),
+                initializer.clone(),
+                token_program.clone(),
+            ],
+        )?;
+
 
     Ok(())
   }
